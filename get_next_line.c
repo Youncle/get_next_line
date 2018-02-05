@@ -1,105 +1,107 @@
-/* ************************************************************************** */
-/*                                                                            */
-/*                                                        :::      ::::::::   */
-/*   get_next_line.c                                    :+:      :+:    :+:   */
-/*                                                    +:+ +:+         +:+     */
-/*   By: vcarstoc <marvin@42.fr>                    +#+  +:+       +#+        */
-/*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2018/02/01 16:33:48 by vcarstoc          #+#    #+#             */
-/*   Updated: 2018/02/05 14:54:00 by vcarstoc         ###   ########.fr       */
-/*                                                                            */
-/* ************************************************************************** */
 
 #include "get_next_line.h"
 
-static unsigned int check_line(char *buf)
+static t_list_gnl	*init_list_gnl(int fd)
 {
-	unsigned int i;
+	t_list_gnl	*link;
+	int			ret;
 
-	i = 0;
-	while (buf[i] != '\0')
-	{
-		if (buf[i] == '\n')
-		{
-			buf[i] = '\0';
-			return(i + 1);
-		}
-		i++;
-	}
-	return (i);
+	if (!(link = (t_list_gnl *)malloc(sizeof(t_list_gnl))))
+		return (NULL);
+	link->fd = fd;
+	if (!(link->temp = ft_strnew(BUFF_SIZE + 1)))
+		return (NULL);
+	ret = read(fd, link->temp, BUFF_SIZE);
+	if (ret == -1)
+		return (NULL);
+	link->next = NULL;
+	return (link);
 }
 
-static void			join_buf(char **buf2, char **buf1)
+static t_list_gnl	*return_current_link(t_list_gnl *head, int fd)
 {
-	char	*tmp1;
-	char	*tmp2;
+	t_list_gnl	*link;
 
-	tmp1 = NULL;
-	tmp2 = NULL;
-	if (*buf2 && **buf2)
+	while (head)
 	{
-		tmp2 = ft_strdup(*buf2);
-		if (*buf1)
-		{
-			tmp1 = ft_strdup(*buf1);
-			free(*buf1);
-		}
-		*buf1 = ft_strjoin(tmp1, tmp2);
-		if (tmp1)
-			free(tmp1);
-		if (tmp2)
-			free(tmp2);
+		if (head->fd == fd)
+			return (head);
+		if (!(head->next))
+			break ;
+		head = head->next;
 	}
+	if (!(link = init_list_gnl(fd)))
+		return (NULL);
+	head->next = link;
+	return (link);
 }
 
-static_int			return_line(char **buf, char **buf2, char **line)
+static void			copy_line(t_list_gnl *link, char **line, char *pos)
 {
-	unsigned int	i;
-	char			*tmp;
+	char	*first;
+	char	*sec;
+	char	*temp_to_free;
 
-	tmp = NULL;
-	i = check_line(*buf);
-	*line = ft_strdup(*buf);
-	tmp = ft_strdup(*buf + i);
-	free(*buf);
-	*buf = tmp;
-	if (buf2)
-		free(*buf2), *buf2 = NULL;
+	first = ft_strsub(link->temp, 0, pos - link->temp);
+	sec = ft_strsub(link->temp, (pos - link->temp) + 1, ft_strlen(link->temp));
+	temp_to_free = *line;
+	*line = ft_strjoin(*line, first);
+	ft_memdel((void **)&temp_to_free);
+	ft_memdel((void **)&first);
+	ft_memdel((void **)&(link->temp));
+	link->temp = sec;
+}
+
+static int			read_line(int fd, t_list_gnl *link, char **line)
+{
+	char	*pos;
+	int		size;
+	int		length;
+	char	*tmp_to_free;
+
+	size = 1;
+	while (size > 0)
+	{
+		if ((pos = ft_strchr(link->temp, '\n')))
+		{
+			copy_line(link, line, pos);
+			return (1);
+		}
+		tmp_to_free = *line;
+		*line = ft_strjoin(*line, link->temp);
+		ft_memdel((void **)&tmp_to_free);
+		length = ft_strlen(link->temp);
+		ft_memdel((void **)&(link->temp));
+		if (!(link->temp = ft_strnew(BUFF_SIZE + 1)))
+			return (-1);
+		size = read(fd, link->temp, BUFF_SIZE);
+		if (!length && !size)
+			return (0);
+	}
 	return (1);
 }
 
-static int			get_next_line(const int fd, char **line)
+int					get_next_line(int const fd, char **line)
 {
-	int			f;
-	char		*buf2;
-	static char	*buf = NULL;
+	int					ret;
+	static t_list_gnl	*head;
+	t_list_gnl			*current_link;
 
-	buf2 = NULL;
-	if (fd <= 0 || (!(line)) || BUFF_SIZE < 1)
+	if (fd < 0 || fd == 1 || fd == 2 || BUFF_SIZE <= 0 || !line)
 		return (-1);
-	if ((!(buf2 = (char*)malloc(sizeof(char) * BUFF_SIZE + 1))))
+	if (!head)
+	{
+		if (!(head = init_list_gnl(fd)))
+			return (-1);
+	}
+	*line = ft_strnew(1);
+	if (!(current_link = return_current_link(head, fd)))
 		return (-1);
-	while (((f = read(fd, buf2, BUFF_SIZE)) > 0) && (!(ft_strchr(buf2, '\n'))))
-	{
-		buf2[f] = '\0';
-		join_buf(&buf2, &buf);
-	}
-	if (buf2 && *buf2 && f > 0)
-	{
-		buf2[f] = '\0';
-		join_buf(&buf2, &buf);
-	}
-	if (f < 0)
+	ret = read_line(fd, current_link, line);
+	if (ret > 0)
+		return (1);
+	else if (ret == 0)
+		return (0);
+	else
 		return (-1);
-	if (buf && buf[0] != '\0')
-		return (return_line(&buf, &buf2, line));
-	if (buf2)
-	{
-		free(buf2);
-		buf2 = NULL;
-	}
-	free(buf);
-	buf = NULL;
-	*line = NULL;
-	return (0);
 }

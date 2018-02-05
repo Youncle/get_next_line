@@ -1,28 +1,28 @@
-/* ************************************************************************** */
-/*                                                                            */
-/*                                                        :::      ::::::::   */
-/*   main.c                                             :+:      :+:    :+:   */
-/*                                                    +:+ +:+         +:+     */
-/*   By: vcarstoc <marvin@42.fr>                    +#+  +:+       +#+        */
-/*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2018/02/05 15:02:44 by vcarstoc          #+#    #+#             */
-/*   Updated: 2018/02/05 15:07:25 by vcarstoc         ###   ########.fr       */
-/*                                                                            */
-/* ************************************************************************** */
 
 #include "get_next_line.h"
+#include <fcntl.h>
 #include <stdio.h>
 
+/* main for testing 1 fd */
 int		main(int argc, char **argv)
 {
-	int		fd;
-	char	*line;
+	int fd;
+	char *line;
+	int ret;/* printing gnl return value*/
+	int i;
 
-	if (argc || argv)
-		;
-	fd = open(argv[1], O_RDONLY);
-	while (get_next_line(fd, &line) == 1)
-		printf("%s\n", line);
-	close(fd);
-	return (0);
+	if (argc >= 2)
+	{
+		if (access(argv[1], F_OK) == 0)
+		{
+			i = 0;
+			fd = open(argv[1], O_RDONLY);
+			while((ret = get_next_line(fd, &line)) == 1)
+			{
+				i++;
+				printf("MAIN:%d, line>%s\n", ret, line);
+			}
+			close(fd);
+       	}
+	}
 }
